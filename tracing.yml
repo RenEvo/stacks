@@ -2,8 +2,57 @@
 version: "3"
 
 services:
-  jaeger:
-    image: jaegertracing/all-in-one:latest
+  agent:
+    image: jaegertracing/jaeger-agent:latest
+    environment:
+      - SPAN_STORAGE_TYPE=elasticsearch
+    command: ["/go/bin/agent-linux", "--collector.host-port=collector:14267"]
     ports:
       - "6831:6831/udp"
-      - "16686:16686"
+
+  collector:
+    image: jaegertracing/jaeger-collector:latest
+    environment:
+      - SPAN_STORAGE_TYPE=elasticsearch
+    command: ["/go/bin/collector-linux", "--es.server-urls=http://elasticsearch:9200", "--es.num-shards=5", "--es.num-replicas=0","--log-level=error"]
+    
+  query:
+    image: jaegertracing/jaeger-query
+    ports:
+      - "16686:16686/tcp"
+    environment:
+      - SPAN_STORAGE_TYPE=elasticsearch
+      #- QUERY_BASE_PATH=/debug/tracing
+      - JAEGER_AGENT_HOST=agent
+    command: ["/go/bin/query-linux", "--es.server-urls=http://elasticsearch:9200", "--query.static-files=/go/jaeger-ui/", "--log-level=debug"]
+    
+  elasticsearch:
+    image: "docker.elastic.co/elasticsearch/elasticsearch:5.4.1"
+    hostname: "elasticsearch"
+    environment:
+      - cluster.name=cluster
+      - node.name=elasticsearch
+      - discovery.zen.ping.unicast.hosts=elasticsearch
+      - discovery.zen.minimum_master_nodes=1
+      - xpack.security.enabled=false
+      - xpack.monitoring.enabled=false
+      - xpack.graph.enabled=false
+      - xpack.watcher.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    volumes:
+      - tracingdata:/usr/share/elasticsearch/data
+
+  kibana:
+    image: "docker.elastic.co/kibana/kibana:5.4.1"
+    ports:
+      - "5601:5601/tcp"
+    environment:
+      - XPACK_SECURITY_ENABLED=false
+      - XPACK_REPORTING_ENABLED=false
+      - XPACK_GRAPH_ENABLED=false
+      - XPACK_ML_ENABLED=false
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      #- SERVER_BASEPATH=/debug/search
+
+volumes:
+  tracingdata:

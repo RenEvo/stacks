@@ -1,0 +1,87 @@
+---
+version: "3"
+
+services:
+  cadvisor:
+    image: google/cadvisor:latest
+    command: -logtostderr -docker_only -storage_driver=influxdb -storage_driver_db=cadvisor -storage_driver_host=influx:8086
+    ports:
+      - "10000:8000/tcp"
+    networks:
+      - network
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run
+      - /sys:sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+    deploy:
+      mode: global
+
+  influx:
+    image: influxdb:alpine
+    ports:
+      - "8086:8086/tcp"
+    networks:
+      - network
+    volumes:
+      - /opt/influxdb:/var/lib/influxdb
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.hostname == alpha01]
+
+  chronograf:
+    image: chronograf:alpine
+    command: --influxdb-url=http://influxdb:8086
+    ports:
+      - "8888:8888/tcp"
+    networks:
+      - network
+    volumes:
+      - /opt/chronograf:/var/lib/chronograf
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.hostname == alpha01]
+
+  kapacitor:
+    image: kapacitor:alpine
+    environment:
+      - KAPACITOR_INFLUXDB_0_URLS_0=http://influxdb:8086
+      - KAPACITOR_INFLUXDB_0_DEFAULT=true
+      - KAPACITOR_STATS_ENABLED=true
+      - KAPACITOR_INFLUXDB_0_SUBSCRIPTION_MODE=server
+      - KAPACITOR_HOSTNAME=192.168.1.150
+      - KAPACITOR_INFLUXDB_0_KAPACITOR_HOSTNAME=192.168.1.150
+    ports:
+      - "9092:9092/tcp"
+    networks:
+      - network
+    volumes:
+      - /opt/kapacitor:/var/lib/kapacitor
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.hostname == alpha01]
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000/tcp"
+    networks:
+      - network
+    volumes:
+      - /opt/grafana:/var/lib/grafana
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.hostname == alpha01]
+
+networks:
+  network:
+    driver: overlay

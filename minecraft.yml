@@ -2,6 +2,7 @@
 version: "3"
 
 services:
+# stats dir: /data/world/stats
   minecraft:
     ports:
       - "25565:25565"
@@ -59,6 +60,34 @@ services:
     volumes:
       - "rcon:/opt/rcon-web-admin/db"
 
+  influx:
+    image: influxdb:alpine
+    ports:
+      - "8086:8086/tcp"
+    volumes:
+      - influx:/var/lib/influxdb
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+
+  chronograf:
+    image: chronograf:alpine
+    environment:
+      INFLUXDB_URL: http://influx:8086
+    ports:
+      - "8888:8888/tcp"
+    volumes:
+      - chronograf:/var/lib/chronograf
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+
 volumes:
   data:
   rcon:
+  influx:
+  chronograf:
